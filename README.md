@@ -121,8 +121,9 @@ Every valve start also fires an HA `timer`. If the valve hasn't been turned off 
 
 ## Screenshots
 
-> *(Add your own after setup!)*
-
+![Dashboard](screenshots/rachio1.png)
+![Dashboard](screenshots/rachio2.png)
+![Dashboard](screenshots/rachio3.png)
 ---
 
 ## License
