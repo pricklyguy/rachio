@@ -1,6 +1,6 @@
 # 💧 Rachio Local Control — Home Assistant Package
 
-A fully local Home Assistant package for controlling Rachio irrigation valves — no cloud required. Includes a scheduler, rain skip via OpenWeatherMap, last-watered tracking, and a polished Mushroom dashboard.
+A Home Assistant package for controlling Rachio irrigation valves. Includes a scheduler, rain skip via OpenWeatherMap, last-watered tracking, and a polished Mushroom dashboard.
 
 > **Version:** v1.0  
 > **Author:** [Prickly Guy Creations](https://github.com/pricklyguy)
@@ -15,7 +15,7 @@ A fully local Home Assistant package for controlling Rachio irrigation valves �
 - **HA timers** as a safety net — valve auto-shutoff even if HA restarts mid-run
 - **Sequential watering** — valves run one at a time, in order
 - **Manual control** — tap any valve card to water it now; tap again or use "Stop All" to cancel
-- **Fully local** — works without Rachio cloud after initial setup
+
 
 ---
 
