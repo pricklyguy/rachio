@@ -1,0 +1,478 @@
+###############################################################################
+# RACHIO LOCAL CONTROL PACKAGE v1.0
+# Requires: Rachio Local Control (HACS) + OpenWeatherMap integration
+#
+# Expected entities from Rachio Local Control integration:
+#   Switches: switch.drip_1, switch.drip_2, switch.drip_3
+#   Status:   sensor.drip_1_status, sensor.drip_2_status, sensor.drip_3_status
+#             (states: "watering" / "not_watering")
+#   Battery:  sensor.drip_1_battery, sensor.drip_2_battery, sensor.drip_3_battery
+#
+# Update input_text.rachio_weather_entity default to your weather entity.
+# Update notify.my_notification_group to your notification target.
+###############################################################################
+
+homeassistant:
+  customize:
+    switch.drip_1:
+      icon: mdi:water
+      friendly_name: Drip 1
+    switch.drip_2:
+      icon: mdi:water
+      friendly_name: Drip 2
+    switch.drip_3:
+      icon: mdi:water
+      friendly_name: Drip 3
+
+input_text:
+  rachio_weather_entity:
+    name: Rachio Weather Entity
+    initial: weather.home
+    max: 64
+    mode: text
+
+input_boolean:
+  rachio_rain_skip_enabled:
+    name: Rain Skip Enabled
+    icon: mdi:weather-rainy
+
+  schedule_a_enabled:
+    name: Schedule A Enabled
+    icon: mdi:weather-sunset-up
+  schedule_a_v1:
+    name: Schedule A → Valve 1
+  schedule_a_v2:
+    name: Schedule A → Valve 2
+  schedule_a_v3:
+    name: Schedule A → Valve 3
+
+  schedule_b_enabled:
+    name: Schedule B Enabled
+    icon: mdi:weather-sunset
+  schedule_b_v1:
+    name: Schedule B → Valve 1
+  schedule_b_v2:
+    name: Schedule B → Valve 2
+  schedule_b_v3:
+    name: Schedule B → Valve 3
+
+  schedule_c_enabled:
+    name: Schedule C Enabled
+  schedule_c_v1:
+    name: Schedule C → Valve 1
+  schedule_c_v2:
+    name: Schedule C → Valve 2
+  schedule_c_v3:
+    name: Schedule C → Valve 3
+
+  schedule_d_enabled:
+    name: Schedule D Enabled
+  schedule_d_v1:
+    name: Schedule D → Valve 1
+  schedule_d_v2:
+    name: Schedule D → Valve 2
+  schedule_d_v3:
+    name: Schedule D → Valve 3
+
+input_number:
+  runtime_v1:
+    name: Valve 1 Default Runtime
+    min: 0
+    max: 60
+    step: 1
+    unit_of_measurement: "min"
+    initial: 10
+  runtime_v2:
+    name: Valve 2 Default Runtime
+    min: 0
+    max: 60
+    step: 1
+    unit_of_measurement: "min"
+    initial: 10
+  runtime_v3:
+    name: Valve 3 Default Runtime
+    min: 0
+    max: 60
+    step: 1
+    unit_of_measurement: "min"
+    initial: 10
+
+  rachio_rain_skip_probability:
+    name: Rain Skip Threshold (%)
+    min: 0
+    max: 100
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:weather-partly-rainy
+    initial: 50
+  rachio_rain_skip_lookahead_hours:
+    name: Rain Lookahead (hours)
+    min: 1
+    max: 48
+    step: 1
+    unit_of_measurement: "h"
+    icon: mdi:timeline-clock
+    initial: 12
+
+  schedule_a_duration_min:
+    name: Schedule A Duration
+    min: 1
+    max: 60
+    step: 1
+    unit_of_measurement: "min"
+    initial: 10
+  schedule_b_duration_min:
+    name: Schedule B Duration
+    min: 1
+    max: 60
+    step: 1
+    unit_of_measurement: "min"
+    initial: 10
+  schedule_c_duration_min:
+    name: Schedule C Duration
+    min: 1
+    max: 60
+    step: 1
+    unit_of_measurement: min
+    initial: 10
+  schedule_d_duration_min:
+    name: Schedule D Duration
+    min: 1
+    max: 60
+    step: 1
+    unit_of_measurement: min
+    initial: 10
+
+input_datetime:
+  drip_1_last_watered:
+    name: Drip 1 Last Watered
+    has_date: true
+    has_time: true
+  drip_2_last_watered:
+    name: Drip 2 Last Watered
+    has_date: true
+    has_time: true
+  drip_3_last_watered:
+    name: Drip 3 Last Watered
+    has_date: true
+    has_time: true
+
+  schedule_a_time:
+    name: Schedule A Time
+    has_time: true
+    has_date: false
+    initial: "04:30:00"
+  schedule_b_time:
+    name: Schedule B Time
+    has_time: true
+    has_date: false
+    initial: "19:00:00"
+  schedule_c_time:
+    name: Schedule C Time
+    has_time: true
+    has_date: false
+  schedule_d_time:
+    name: Schedule D Time
+    has_time: true
+    has_date: false
+
+timer:
+  drip_1_timer:
+    name: Drip 1 Timer
+  drip_2_timer:
+    name: Drip 2 Timer
+  drip_3_timer:
+    name: Drip 3 Timer
+
+template:
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/30"
+      - trigger: state
+        entity_id:
+          - input_boolean.rachio_rain_skip_enabled
+          - input_number.rachio_rain_skip_probability
+          - sensor.openweathermap_precipitation_probability_today
+    binary_sensor:
+      - name: rachio_rain_skip_now
+        unique_id: rachio_rain_skip_now
+        device_class: moisture
+        state: >
+          {% if is_state('input_boolean.rachio_rain_skip_enabled','on') and
+                (states('sensor.openweathermap_precipitation_probability_today') | int(0)) >=
+                (states('input_number.rachio_rain_skip_probability') | int(0)) %}
+            on
+          {% else %}
+            off
+          {% endif %}
+        icon: >
+          {{ 'mdi:weather-pouring' if this.state == 'on' else 'mdi:weather-partly-cloudy' }}
+        attributes:
+          probability: "{{ states('sensor.openweathermap_precipitation_probability_today') }}"
+          threshold: "{{ states('input_number.rachio_rain_skip_probability') }}"
+
+  - sensor:
+      - name: openweathermap_precipitation_probability_today
+        unique_id: openweathermap_precipitation_probability_today
+        unit_of_measurement: "%"
+        state: >
+          {% set fc = state_attr('sensor.openweathermap_daily_forecast','all_forecast') %}
+          {% if fc and fc[0] is defined %}
+            {{ (fc[0].precipitation_probability | float(0)) | round(0) }}
+          {% else %}
+            0
+          {% endif %}
+        attributes:
+          condition: >
+            {% set fc = state_attr('sensor.openweathermap_daily_forecast','all_forecast') %}
+            {% if fc and fc[0] is defined %}{{ fc[0].condition }}{% else %}unknown{% endif %}
+          high_temp: >
+            {% set fc = state_attr('sensor.openweathermap_daily_forecast','all_forecast') %}
+            {% if fc and fc[0] is defined %}{{ fc[0].temperature | round(0) }}{% else %}unknown{% endif %}
+          low_temp: >
+            {% set fc = state_attr('sensor.openweathermap_daily_forecast','all_forecast') %}
+            {% if fc and fc[0] is defined %}{{ fc[0].templow | round(0) }}{% else %}unknown{% endif %}
+
+script:
+  rachio_toggle_all:
+    alias: "Rachio • Toggle All Valves"
+    mode: single
+    sequence:
+      - variables:
+          any_on: >
+            {{ is_state('switch.drip_1','on')
+              or is_state('switch.drip_2','on')
+              or is_state('switch.drip_3','on') }}
+      - choose:
+          - conditions: "{{ any_on }}"
+            sequence:
+              - action: switch.turn_off
+                target:
+                  entity_id:
+                    - switch.drip_1
+                    - switch.drip_2
+                    - switch.drip_3
+              - action: timer.cancel
+                target:
+                  entity_id:
+                    - timer.drip_1_timer
+                    - timer.drip_2_timer
+                    - timer.drip_3_timer
+              - action: persistent_notification.create
+                data:
+                  title: "🛑 Rachio Stopped"
+                  message: "All valves stopped and timers cancelled."
+          - conditions: []
+            sequence:
+              - action: script.rachio_water_one
+                data: { valve: 1 }
+              - action: script.rachio_water_one
+                data: { valve: 2 }
+              - action: script.rachio_water_one
+                data: { valve: 3 }
+
+  rachio_water_one:
+    alias: Rachio • Water One
+    mode: restart
+    fields:
+      valve:
+        description: Valve number
+        example: "1"
+    sequence:
+      - variables:
+          switch_entity: "switch.drip_{{ valve }}"
+          timer_entity: "timer.drip_{{ valve }}_timer"
+          datetime_entity: "input_datetime.drip_{{ valve }}_last_watered"
+          runtime_min: "{{ states('input_number.runtime_v' ~ valve) | int(0) }}"
+          runtime_sec: "{{ runtime_min * 60 }}"
+      - action: switch.turn_on
+        target:
+          entity_id: "{{ switch_entity }}"
+      - action: timer.start
+        target:
+          entity_id: "{{ timer_entity }}"
+        data:
+          duration:
+            seconds: "{{ runtime_sec }}"
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ datetime_entity }}"
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  rachio_run_schedule:
+    alias: "Rachio • Run Schedule"
+    mode: single
+    fields:
+      name:
+        description: "Schedule name (a, b, c, or d)"
+        example: "a"
+    sequence:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.rachio_rain_skip_now
+                state: "on"
+            sequence:
+              - action: persistent_notification.create
+                data:
+                  title: "🌧️ Rachio Schedule Skipped"
+                  message: "{{ name | upper }} schedule skipped due to rain forecast."
+              - action: notify.my_notification_group
+                data:
+                  title: "🌧️ Rachio Rain Skip"
+                  message: "Scheduled {{ name | upper }} watering was skipped due to rain."
+              - stop: "Rain Skip active"
+      - variables:
+          prefix: "schedule_{{ name }}"
+          duration_min: "{{ states('input_number.' ~ prefix ~ '_duration_min') | int(0) }}"
+          duration_sec: "{{ duration_min * 60 }}"
+          v1: "input_boolean.schedule_{{ name }}_v1"
+          v2: "input_boolean.schedule_{{ name }}_v2"
+          v3: "input_boolean.schedule_{{ name }}_v3"
+          valves: >-
+            {{
+              [
+                '1' if is_state(v1,'on') else none,
+                '2' if is_state(v2,'on') else none,
+                '3' if is_state(v3,'on') else none
+              ]
+              | reject('equalto', none)
+              | list
+            }}
+      - condition: template
+        value_template: "{{ valves | length > 0 }}"
+      - repeat:
+          for_each: "{{ valves }}"
+          sequence:
+            - action: script.rachio_water_one
+              data:
+                valve: "{{ repeat.item }}"
+            - delay:
+                seconds: "{{ duration_sec }}"
+            - action: switch.turn_off
+              target:
+                entity_id: "switch.drip_{{ repeat.item }}"
+            - action: input_datetime.set_datetime
+              target:
+                entity_id: "input_datetime.drip_{{ repeat.item }}_last_watered"
+              data:
+                datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+automation:
+  - id: rachio_capture_last_watered_drip_1
+    alias: Rachio • Capture Last Watered (1)
+    trigger: { trigger: state, entity_id: sensor.drip_1_status, to: "watering" }
+    action:
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.drip_1_last_watered }
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  - id: rachio_capture_last_watered_drip_2
+    alias: Rachio • Capture Last Watered (2)
+    trigger: { trigger: state, entity_id: sensor.drip_2_status, to: "watering" }
+    action:
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.drip_2_last_watered }
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  - id: rachio_capture_last_watered_drip_3
+    alias: Rachio • Capture Last Watered (3)
+    trigger: { trigger: state, entity_id: sensor.drip_3_status, to: "watering" }
+    action:
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.drip_3_last_watered }
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  - id: rachio_valve_timer_shutdown
+    alias: Rachio • Valve Timer Shutdown
+    mode: queued
+    trigger:
+      - trigger: event
+        event_type: timer.finished
+    action:
+      - variables:
+          valve_map:
+            timer.drip_1_timer: switch.drip_1
+            timer.drip_2_timer: switch.drip_2
+            timer.drip_3_timer: switch.drip_3
+      - condition: template
+        value_template: "{{ trigger.event.data.entity_id in valve_map }}"
+      - action: switch.turn_off
+        target:
+          entity_id: "{{ valve_map[trigger.event.data.entity_id] }}"
+
+  - id: rachio_manual_valve_off_cleanup
+    alias: Rachio • Manual Valve Off Cleanup
+    mode: queued
+    trigger:
+      - trigger: state
+        entity_id:
+          - switch.drip_1
+          - switch.drip_2
+          - switch.drip_3
+        to: "off"
+    variables:
+      timer_map:
+        switch.drip_1: timer.drip_1_timer
+        switch.drip_2: timer.drip_2_timer
+        switch.drip_3: timer.drip_3_timer
+    action:
+      - action: timer.cancel
+        target:
+          entity_id: "{{ timer_map[trigger.entity_id] }}"
+
+  - id: rachio_schedule_a
+    alias: Rachio • Schedule A
+    trigger:
+      - trigger: time
+        at: input_datetime.schedule_a_time
+    condition:
+      - condition: state
+        entity_id: input_boolean.schedule_a_enabled
+        state: "on"
+    action:
+      - action: script.rachio_run_schedule
+        data: { name: "a" }
+
+  - id: rachio_schedule_b
+    alias: Rachio • Schedule B
+    trigger:
+      - trigger: time
+        at: input_datetime.schedule_b_time
+    condition:
+      - condition: state
+        entity_id: input_boolean.schedule_b_enabled
+        state: "on"
+    action:
+      - action: script.rachio_run_schedule
+        data: { name: "b" }
+
+  - id: rachio_schedule_c
+    alias: Rachio • Schedule C
+    trigger:
+      - trigger: time
+        at: input_datetime.schedule_c_time
+    condition:
+      - condition: state
+        entity_id: input_boolean.schedule_c_enabled
+        state: "on"
+    action:
+      - action: script.rachio_run_schedule
+        data: { name: "c" }
+
+  - id: rachio_schedule_d
+    alias: Rachio • Schedule D
+    trigger:
+      - trigger: time
+        at: input_datetime.schedule_d_time
+    condition:
+      - condition: state
+        entity_id: input_boolean.schedule_d_enabled
+        state: "on"
+    action:
+      - action: script.rachio_run_schedule
+        data: { name: "d" }

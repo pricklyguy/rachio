@@ -1,0 +1,386 @@
+title: Rachio
+path: rachio
+icon: mdi:sprinkler-variant
+type: sections
+background: "linear-gradient(180deg, #09262b 0%, #203a43 50%, #2c5364 100%)"
+header:
+  layout: center
+  card:
+    type: custom:mushroom-chips-card
+    alignment: center
+    chips:
+      - type: template
+        icon: mdi:arrow-left
+        content: <-- Back to Previous Page
+        icon_color: teal
+        tap_action:
+          action: fire-dom-event
+          browser_mod:
+            command: call_service
+            service: browser_mod.javascript
+            data:
+              code: window.history.back();
+        card_mod:
+          style: |
+            ha-chip {
+              --chip-background: rgba(0, 128, 128, 0.2);
+              --chip-border-radius: 10px;
+              --chip-font-size: 0.9em;
+              --chip-padding: 0 12px;
+              color: #e6faff !important;
+              font-weight: 600;
+            }
+      - type: template
+        entity: input_boolean.rachio_rain_skip_enabled
+        icon: mdi:weather-pouring
+        icon_color: |
+          {% if is_state('binary_sensor.rachio_rain_skip_now', 'on') %}
+            blue
+          {% elif is_state('input_boolean.rachio_rain_skip_enabled', 'on') %}
+            green
+          {% else %}
+            grey
+          {% endif %}
+        content: |
+          {% if is_state('binary_sensor.rachio_rain_skip_now', 'on') %}
+            Rain Skip Active
+          {% elif is_state('input_boolean.rachio_rain_skip_enabled','on') %}
+            Rain Skip Ready
+          {% else %}
+            Skip Disabled
+          {% endif %}
+        tap_action:
+          action: toggle
+      - type: template
+        icon: |
+          {% if is_state('switch.drip_1','on')
+                or is_state('switch.drip_2','on')
+                or is_state('switch.drip_3','on') %}
+            mdi:stop-circle
+          {% else %}
+            mdi:play-circle
+          {% endif %}
+        icon_color: |
+          {% if is_state('switch.drip_1','on')
+                or is_state('switch.drip_2','on')
+                or is_state('switch.drip_3','on') %}
+            red
+          {% else %}
+            green
+          {% endif %}
+        content: |
+          {% if is_state('switch.drip_1','on')
+                or is_state('switch.drip_2','on')
+                or is_state('switch.drip_3','on') %}
+            Stop All
+          {% else %}
+            Water All Now
+          {% endif %}
+        tap_action:
+          action: call-service
+          service: script.rachio_toggle_all
+      - type: template
+        entity: weather.openweathermap
+        icon: mdi:weather-partly-rainy
+        icon_color: >
+          {% set rain = states('sensor.openweathermap_precipitation_probability_today') | int(0) %}
+          {% if rain >= 70 %} blue
+          {% elif rain >= 30 %} teal
+          {% else %} amber
+          {% endif %}
+        content: >
+          {% set rain = states('sensor.openweathermap_precipitation_probability_today') | int(0) %}
+          {% set cond = state_attr('sensor.openweathermap_precipitation_probability_today','condition') | replace('_',' ') | title %}
+          {% set high = state_attr('sensor.openweathermap_precipitation_probability_today','high_temp') %}
+          {% set low = state_attr('sensor.openweathermap_precipitation_probability_today','low_temp') %}
+          {{ rain }}% | H:{{ high }}° / L:{{ low }}° {{ cond }}
+        tap_action:
+          action: more-info
+sections:
+  - type: grid
+    cards:
+      - type: custom:mushroom-title-card
+        title: 💧 Valves and Attributes
+        card_mod:
+          style: |
+            ha-card h1 {
+              color: white !important;
+              font-size: 2.8rem !important;
+              font-weight: 800 !important;
+              text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+              letter-spacing: 0.5px;
+            }
+      - type: vertical-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Drip 1
+            secondary: >
+              {% set dt = states('input_datetime.drip_1_last_watered') %}
+              Last watered: {{ dt if dt not in ['unknown','unavailable'] else '—' }}
+            icon: mdi:water
+            badge_icon: >
+              {% if is_state('sensor.drip_1_status','watering') %} mdi:water-check
+              {% else %} mdi:water-off {% endif %}
+            badge_color: >
+              {% if is_state('sensor.drip_1_status','watering') %} blue {% else %} grey {% endif %}
+            entity: switch.drip_1
+            tap_action:
+              action: call-service
+              service: script.rachio_water_one
+              data:
+                valve: 1
+            multiline_secondary: true
+            color: >
+              {% if is_state('sensor.drip_1_status','watering') %} blue
+              {% elif is_state('switch.drip_1','on') %} green
+              {% else %} grey {% endif %}
+            features_position: bottom
+          - type: entities
+            entities:
+              - entity: sensor.drip_1_battery
+                name: Battery
+              - entity: input_number.runtime_v1
+                name: Max Runtime (if not set)
+              - type: custom:multiple-entity-row
+                entity: switch.drip_1
+                name: Details
+                show_state: false
+                secondary_info: last-changed
+                entities:
+                  - entity: sensor.drip_1_status
+                    name: Status
+                  - entity: timer.drip_1_timer
+                    name: Timer
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: timer.drip_1_timer
+                state: active
+            card:
+              type: entities
+              entities:
+                - entity: timer.drip_1_timer
+                  name: Watering Progress
+                - type: custom:timer-bar-card
+                  entity: timer.drip_1_timer
+                  name: Time Remaining
+                  bar_width: 100%
+                  invert: true
+                  color: orange
+      - type: vertical-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Drip 2
+            secondary: >
+              {% set dt = states('input_datetime.drip_2_last_watered') %}
+              Last watered: {{ dt if dt not in ['unknown','unavailable'] else '—' }}
+            icon: mdi:water
+            badge_icon: >
+              {% if is_state('sensor.drip_2_status','watering') %} mdi:water-check
+              {% else %} mdi:water-off {% endif %}
+            badge_color: >
+              {% if is_state('sensor.drip_2_status','watering') %} blue {% else %} grey {% endif %}
+            entity: switch.drip_2
+            tap_action:
+              action: call-service
+              service: script.rachio_water_one
+              data:
+                valve: 2
+            color: >
+              {% if is_state('sensor.drip_2_status','watering') %} blue
+              {% elif is_state('switch.drip_2','on') %} green
+              {% else %} grey {% endif %}
+            features_position: bottom
+          - type: entities
+            entities:
+              - entity: sensor.drip_2_battery
+                name: Battery
+              - entity: input_number.runtime_v2
+                name: Max Runtime (if not set)
+              - type: custom:multiple-entity-row
+                entity: switch.drip_2
+                name: Details
+                show_state: false
+                secondary_info: last-changed
+                entities:
+                  - entity: sensor.drip_2_status
+                    name: Status
+                  - entity: timer.drip_2_timer
+                    name: Timer
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: timer.drip_2_timer
+                state: active
+            card:
+              type: entities
+              entities:
+                - entity: timer.drip_2_timer
+                  name: Watering Progress
+                - type: custom:timer-bar-card
+                  entity: timer.drip_2_timer
+                  name: Time Remaining
+                  bar_width: 100%
+                  invert: true
+                  color: orange
+      - type: vertical-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Drip 3
+            secondary: >
+              {% set dt = states('input_datetime.drip_3_last_watered') %}
+              Last watered: {{ dt if dt not in ['unknown','unavailable'] else '—' }}
+            icon: mdi:water
+            icon_color: >
+              {% if is_state('sensor.drip_3_status','watering') %} blue
+              {% elif is_state('switch.drip_3','on') %} green
+              {% else %} grey {% endif %}
+            badge_icon: >
+              {% if is_state('sensor.drip_3_status','watering') %} mdi:water-check
+              {% else %} mdi:water-off {% endif %}
+            badge_color: >
+              {% if is_state('sensor.drip_3_status','watering') %} blue {% else %} grey {% endif %}
+            entity: switch.drip_3
+            tap_action:
+              action: call-service
+              service: script.rachio_water_one
+              data:
+                valve: 3
+          - type: entities
+            entities:
+              - entity: sensor.drip_3_battery
+                name: Battery
+              - entity: input_number.runtime_v3
+                name: Max Runtime (if not set)
+              - type: custom:multiple-entity-row
+                entity: switch.drip_3
+                name: Details
+                show_state: false
+                secondary_info: last-changed
+                entities:
+                  - entity: sensor.drip_3_status
+                    name: Status
+                  - entity: timer.drip_3_timer
+                    name: Timer
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: timer.drip_3_timer
+                state: active
+            card:
+              type: entities
+              entities:
+                - entity: timer.drip_3_timer
+                  name: Watering Progress
+                - type: custom:timer-bar-card
+                  entity: timer.drip_3_timer
+                  name: Time Remaining
+                  bar_width: 100%
+                  invert: true
+                  color: orange
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Rain Skip
+            show_header_toggle: false
+            entities:
+              - entity: input_boolean.rachio_rain_skip_enabled
+              - entity: input_text.rachio_weather_entity
+              - entity: input_number.rachio_rain_skip_probability
+              - entity: input_number.rachio_rain_skip_lookahead_hours
+              - entity: binary_sensor.rachio_rain_skip_now
+                name: Rain Skip Status
+                state_color: true
+  - type: grid
+    cards:
+      - type: custom:mushroom-title-card
+        title: 🌿 Schedules & Rain Skip
+        card_mod:
+          style: |
+            ha-card h1 {
+              color: white !important;
+              font-size: 2.8rem !important;
+              font-weight: 800 !important;
+              text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+              letter-spacing: 0.5px;
+            }
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Schedule A
+            show_header_toggle: false
+            entities:
+              - input_boolean.schedule_a_enabled
+              - input_datetime.schedule_a_time
+              - input_number.schedule_a_duration_min
+              - type: divider
+              - input_boolean.schedule_a_v1
+              - input_boolean.schedule_a_v2
+              - input_boolean.schedule_a_v3
+              - type: button
+                name: ▶ Run Schedule A Now
+                icon: mdi:play
+                tap_action:
+                  action: call-service
+                  service: script.rachio_run_schedule
+                  service_data:
+                    name: a
+          - type: entities
+            title: Schedule B
+            show_header_toggle: false
+            entities:
+              - input_boolean.schedule_b_enabled
+              - input_datetime.schedule_b_time
+              - input_number.schedule_b_duration_min
+              - type: divider
+              - input_boolean.schedule_b_v1
+              - input_boolean.schedule_b_v2
+              - input_boolean.schedule_b_v3
+              - type: button
+                name: ▶ Run Schedule B Now
+                icon: mdi:play
+                tap_action:
+                  action: call-service
+                  service: script.rachio_run_schedule
+                  service_data:
+                    name: b
+          - type: entities
+            title: Schedule C
+            show_header_toggle: false
+            entities:
+              - input_boolean.schedule_c_enabled
+              - input_datetime.schedule_c_time
+              - input_number.schedule_c_duration_min
+              - type: divider
+              - input_boolean.schedule_c_v1
+              - input_boolean.schedule_c_v2
+              - input_boolean.schedule_c_v3
+              - type: button
+                name: ▶ Run Schedule C Now
+                icon: mdi:play
+                tap_action:
+                  action: call-service
+                  service: script.rachio_run_schedule
+                  service_data:
+                    name: c
+          - type: entities
+            title: Schedule D
+            show_header_toggle: false
+            entities:
+              - input_boolean.schedule_d_enabled
+              - input_datetime.schedule_d_time
+              - input_number.schedule_d_duration_min
+              - type: divider
+              - input_boolean.schedule_d_v1
+              - input_boolean.schedule_d_v2
+              - input_boolean.schedule_d_v3
+              - type: button
+                name: ▶ Run Schedule D Now
+                icon: mdi:play
+                tap_action:
+                  action: call-service
+                  service: script.rachio_run_schedule
+                  service_data:
+                    name: d
+cards: []
+max_columns: 4
